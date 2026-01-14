@@ -26,25 +26,23 @@ class InstallCommand extends Command
             '--force' => $this->option('force')
         ]);
 
-        // 3. Publicar recursos Filament
-        $this->call('vendor:publish', [
-            '--tag' => 'admin-filament',
-            '--force' => $this->option('force')
-        ]);
-
-        // 4. Publicar migrations
+        /*
+        // 3. Publicar migrations
         $this->call('vendor:publish', [
             '--tag' => 'admin-migrations',
             '--force' => $this->option('force')
         ]);
+        /* */
 
-        // 5. Copiar arquivos adicionais manualmente se necessário
+        // 4. Copiar arquivos adicionais manualmente se necessário
         $this->copyCustomFiles();
 
-        // 6. Executar migrations
+        // 5. Executar migrations
+        /*
         if ($this->confirm('Deseja executar as migrations agora?', true)) {
             $this->call('migrate');
         }
+        /**/
 
         $this->info('✅ Instalação concluída com sucesso!');
         $this->line('Execute: php artisan admin:install para reinstalar se necessário');
