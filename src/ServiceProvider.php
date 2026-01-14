@@ -22,10 +22,12 @@ class ServiceProvider extends BaseServiceProvider
                 InstallCommand::class,
             ]);
 
+            /*
             // Publicar migrations
             $this->publishes([
                 __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'admin-migrations');
+            /* */
 
             // Publicar configurações
             $this->publishes([
