@@ -31,6 +31,7 @@ class ServiceProvider extends BaseServiceProvider
 
             // Publicar configurações
             $this->publishes([
+                __DIR__.'/../stubs/.env.2i9' => base_path('.env.2i9'),
                 __DIR__.'/../stubs/config/admin.php' => config_path('admin.php'),
             ], 'admin-config');
 
