@@ -29,20 +29,18 @@ class ServiceProvider extends BaseServiceProvider
 
             // Publicar configurações
             $this->publishes([
-                __DIR__.'/../config/admin.php' => config_path('admin.php'),
+                __DIR__.'/../stubs/config/admin.php' => config_path('admin.php'),
             ], 'admin-config');
 
+            /*
             // Publicar stubs/arquivos
             $this->publishes([
                 __DIR__.'/../stubs/app' => app_path(),
             ], 'admin-models');
-
-            $this->publishes([
-                __DIR__.'/../stubs/filament' => app_path('Filament'),
-            ], 'admin-filament');
+            /* */
         }
 
         // Carregar migrations automaticamente
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        //$this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }
