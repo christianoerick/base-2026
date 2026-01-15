@@ -3,7 +3,8 @@
 namespace ChristianoErick\Base;
 
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
-use ChristianoErick\Base\Commands\InstallCommand;
+
+use ChristianoErick\Base\Commands\{InstallCommand, SeedContentCommand};
 
 class ServiceProvider extends BaseServiceProvider
 {
@@ -20,27 +21,16 @@ class ServiceProvider extends BaseServiceProvider
             // Registrar comandos
             $this->commands([
                 InstallCommand::class,
+                SeedContentCommand::class,
             ]);
 
-            /*
-            // Publicar migrations
-            $this->publishes([
-                __DIR__.'/../database/migrations' => database_path('migrations'),
-            ], 'admin-migrations');
-            /* */
-
-            // Publicar configurações
             $this->publishes([
                 __DIR__.'/../stubs/.env.2i9' => base_path('.env.2i9'),
                 __DIR__.'/../stubs/config/admin.php' => config_path('admin.php'),
-            ], 'admin-config');
-
-            $this->publishes([
                 __DIR__.'/../stubs/App' => app_path(),
-            ], 'admin-models');
+            ], 'admin-config');
         }
 
-        // Carregar migrations automaticamente
-        //$this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }
