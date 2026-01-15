@@ -14,35 +14,24 @@ class InstallCommand extends Command
     {
         $this->info('Instalando painel administrativo...');
 
-        // 1. Publicar configurações
         $this->call('vendor:publish', [
             '--tag' => 'admin-config',
             '--force' => $this->option('force')
         ]);
 
-        // 2. Publicar models
         $this->call('vendor:publish', [
             '--tag' => 'admin-models',
             '--force' => $this->option('force')
         ]);
 
-        /*
-        // 3. Publicar migrations
-        $this->call('vendor:publish', [
-            '--tag' => 'admin-migrations',
-            '--force' => $this->option('force')
-        ]);
-        /* */
+        //$this->copyCustomFiles();
 
-        // 4. Copiar arquivos adicionais manualmente se necessário
-        $this->copyCustomFiles();
-
-        // 5. Executar migrations
-        /*
         if ($this->confirm('Deseja executar as migrations agora?', true)) {
-            $this->call('migrate');
+            $this->call('migrate', [
+                '--path' => __DIR__.'/../../database/migrations',
+                '--force' => true,
+            ]);
         }
-        /**/
 
         $this->info('✅ Instalação concluída com sucesso!');
         $this->line('Execute: php artisan admin:install para reinstalar se necessário');
@@ -53,13 +42,11 @@ class InstallCommand extends Command
         $files = [
             __DIR__.'/../../stubs/app/Providers/AppServiceProvider.php'
             => app_path('Providers/AppServiceProvider.php'),
-            // Adicione mais arquivos conforme necessário
         ];
 
         foreach ($files as $from => $to) {
             if (File::exists($from)) {
                 File::ensureDirectoryExists(dirname($to));
-
                 if (!File::exists($to) || $this->option('force')) {
                     File::copy($from, $to);
                     $this->line("✓ Copiado: {$to}");

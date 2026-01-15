@@ -36,7 +36,7 @@ class ServiceProvider extends BaseServiceProvider
             ], 'admin-config');
 
             $this->publishes([
-                __DIR__.'/../stubs/app' => app_path(),
+                __DIR__.'/../stubs/App' => app_path(),
             ], 'admin-models');
         }
 
