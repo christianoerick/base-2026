@@ -5,6 +5,8 @@ use Exception;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File as FacadeFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 use ChristianoErick\Base\Models\Post;
@@ -23,6 +25,7 @@ class SeedContentCommand extends Command
 							{--count=20 : Quantidade de posts/páginas}
 							{--domains=2 : Quantidade de domínios}
 							{--with-media : Gerar imagens, áudios e arquivos}
+							{--with-videos : Criar posts do tipo vídeo}
 							{--with-tags : Gerar e vincular tags}';
 
 	protected $description = 'Gera conteúdo inteligente em português com relacionamentos completos';
@@ -55,15 +58,14 @@ class SeedContentCommand extends Command
 
 			// 3. Criar mídia se solicitado
 			$images = $withMedia ? $this->createImages() : collect();
-			$audios = $withMedia ? $this->createAudios($type) : collect();
+			$audios = $withMedia ? $this->createAudios() : collect();
 			$files = $withMedia ? $this->createFiles() : collect();
+			//$videos = $withMedia ? $this->createVideos() : collect();
 
 			// 4. Gerar conteúdo baseado no tipo
 			match($type) {
 				'site' => $this->generateSiteContent($domains),
 				'portal' => $this->generatePortalContent($count, $domains, $tags, $images, $files),
-				'blog' => $this->generateBlogContent($count, $domains, $tags, $images),
-				'tv' => $this->generateTvContent($count, $domains, $tags, $images, $audios),
 			};
 
 			//DB::commit();
@@ -83,110 +85,232 @@ class SeedContentCommand extends Command
 
 	protected function createDomains($count)
 	{
-		$this->task('Criando domínios', function () use ($count, &$domains) {
+		return $this->components->task('Criando domínios', function () use ($count, &$domains) {
 			$domains = collect();
-
 			foreach (range(1, $count) as $i) {
-				$domains->push(Domain::create([
-					'status' => true,
-					'name' => "Domínio {$i}",
-					'domain' => "dominio-{$i}.ddev.site",
-				]));
+				$item = Domain::find($i);
+				if (!is_object($item)) {
+					$item = Domain::create([
+						'status' => true,
+						'name' => "Domínio {$i}",
+						'domain' => "dominio-{$i}.ddev.site",
+					]);
+				}
+				$domains->push($item);
 			}
-
 			return $domains;
 		});
-
-		return $domains;
 	}
 
 	protected function createTags()
 	{
-		$this->task('Criando tags', function (&$tags) {
+		return $this->components->task('Criando tags', function () {
 			$tags = collect();
-
 			foreach ($this->tags as $tagName) {
 				$tags->push(Tag::firstOrCreate(
 					['slug' => Str::slug($tagName)],
-					['name' => $tagName]
+					['tag' => $tagName]
 				));
 			}
-
 			return $tags;
 		});
-
-		return $tags;
 	}
 
 	protected function createImages()
 	{
-		$this->task('Criando imagens', function (&$images) {
+		return $this->components->task('Criando imagens', function () {
 			$images = collect();
 			foreach ($this->images as $image)
 			{
+				$item = Image::firstWhere('file', $image);
+				if (!is_object($item))
+				{
+					try
+					{
+						$path = 'images/'.$image;
 
-			}
+						$extension = pathinfo($path, PATHINFO_EXTENSION);
 
-			for ($i = 1; $i <= 30; $i++) {
-				$images->push(Image::create([
-					'filename' => "imagem-{$i}.jpg",
-					'path' => "/storage/images/imagem-{$i}.jpg",
-					'alt' => "Imagem ilustrativa {$i}",
-					'caption' => "Legenda da imagem {$i}",
-					'size' => rand(50000, 500000)
-				]));
+						$size = Storage::size($path);
+
+						$mime = Storage::mimeType($path);
+
+						$stream = Storage::readStream($path);
+						$hash = hash_init('sha1');
+						hash_update_stream($hash, $stream);
+						$sha1 = hash_final($hash);
+						fclose($stream);
+
+						$item = Image::create([
+							'ai' => false,
+							'caption' => 'Imagem Ilustrativa',
+							'author' => 'Sistema',
+							'hash' => $sha1,
+							'file' => $image,
+							'file_data' => [
+								'ext' => $extension,
+								'mime' => $mime,
+								'size' => $size,
+							],
+						]);
+					} catch(Exception $e) { }
+				}
+
+				if (is_object($item))
+				{
+					$images->push($item);
+				}
 			}
 
 			return $images;
 		});
-
-		return $images;
 	}
 
-	protected function createAudios($type)
+	protected function createAudios()
 	{
-		$this->task('Criando áudios', function () use ($type, &$audios) {
+		return $this->components->task('Criando áudios', function () {
 			$audios = collect();
-			$audioTypes = $type === 'tv' ? ['entrevista', 'programa', 'podcast'] : ['podcast', 'audio'];
+			foreach (range(1, 50) as $n) {
+				$n = ($n < 10 ? '0' : '').$n.'.mp3';
+				$item = Audio::firstWhere('file', $n);
+				if (!is_object($item))
+				{
+					try
+					{
+						$path = 'audios/'.$n;
 
-			for ($i = 1; $i <= 10; $i++) {
-				$audioType = $audioTypes[array_rand($audioTypes)];
-				$audios->push(Audio::create([
-					'filename' => "{$audioType}-{$i}.mp3",
-					'path' => "/storage/audios/{$audioType}-{$i}.mp3",
-					'title' => ucfirst($audioType) . " #{$i}",
-					'duration' => rand(300, 3600),
-					'size' => rand(1000000, 10000000)
-				]));
+						$extension = pathinfo($path, PATHINFO_EXTENSION);
+
+						$size = Storage::size($path);
+
+						$mime = Storage::mimeType($path);
+
+						$stream = Storage::readStream($path);
+						$hash = hash_init('sha1');
+						hash_update_stream($hash, $stream);
+						$sha1 = hash_final($hash);
+						fclose($stream);
+
+						$item = Audio::create([
+							'ai' => false,
+							'caption' => 'Audio Ilustrativo',
+							'hash' => $sha1,
+							'file' => $n,
+							'file_data' => [
+								'ext' => $extension,
+								'mime' => $mime,
+								'size' => $size,
+							],
+						]);
+					} catch(Exception $e) { }
+				}
+
+				if (is_object($item))
+				{
+					$audios->push($item);
+				}
 			}
 
 			return $audios;
 		});
+	}
 
-		return $audios;
+	protected function createVideos()
+	{
+		return $this->components->task('Criando vídeos', function () {
+			$audios = collect();
+			foreach (range(1, 50) as $n) {
+				$n = ($n < 10 ? '0' : '').$n.'.mp3';
+				$item = Audio::firstWhere('file', $n);
+				if (!is_object($item))
+				{
+					try
+					{
+						$path = 'audios/'.$n;
+
+						$extension = pathinfo($path, PATHINFO_EXTENSION);
+
+						$size = Storage::size($path);
+
+						$mime = Storage::mimeType($path);
+
+						$stream = Storage::readStream($path);
+						$hash = hash_init('sha1');
+						hash_update_stream($hash, $stream);
+						$sha1 = hash_final($hash);
+						fclose($stream);
+
+						$item = Audio::create([
+							'ai' => false,
+							'caption' => 'Audio Ilustrativo',
+							'hash' => $sha1,
+							'file' => $n,
+							'file_data' => [
+								'ext' => $extension,
+								'mime' => $mime,
+								'size' => $size,
+							],
+						]);
+					} catch(Exception $e) { }
+				}
+
+				if (is_object($item))
+				{
+					$audios->push($item);
+				}
+			}
+
+			return $audios;
+		});
 	}
 
 	protected function createFiles()
 	{
-		$this->task('Criando arquivos', function (&$files) {
+		return $this->components->task('Criando arquivos', function () {
 			$files = collect();
-			$fileTypes = ['pdf', 'doc', 'xlsx', 'zip'];
+			foreach ($this->files as $file)
+			{
+				$item = File::firstWhere('file', $file);
+				if (!is_object($item))
+				{
+					try
+					{
+						$path = 'files/'.$file;
 
-			for ($i = 1; $i <= 15; $i++) {
-				$ext = $fileTypes[array_rand($fileTypes)];
-				$files->push(File::create([
-					'filename' => "documento-{$i}.{$ext}",
-					'path' => "/storage/files/documento-{$i}.{$ext}",
-					'title' => "Documento {$i}",
-					'mime_type' => $this->getMimeType($ext),
-					'size' => rand(10000, 1000000)
-				]));
+						$extension = pathinfo($path, PATHINFO_EXTENSION);
+
+						$size = Storage::size($path);
+
+						$mime = Storage::mimeType($path);
+
+						$stream = Storage::readStream($path);
+						$hash = hash_init('sha1');
+						hash_update_stream($hash, $stream);
+						$sha1 = hash_final($hash);
+						fclose($stream);
+
+						$item = File::create([
+							'ai' => false,
+							'caption' => 'Arquivo Ilustrativo',
+							'hash' => $sha1,
+							'file' => $file,
+							'file_data' => [
+								'ext' => $extension,
+								'mime' => $mime,
+								'size' => $size,
+							],
+						]);
+					} catch(Exception $e) { }
+				}
+
+				if (is_object($item))
+				{
+					$files->push($item);
+				}
 			}
 
 			return $files;
 		});
-
-		return $files;
 	}
 
 	protected function generateSiteContent($domains)
@@ -245,67 +369,6 @@ class SeedContentCommand extends Command
 			]);
 
 			$this->attachRelations($post, $categories->random(rand(1, 3)), $domains, $tags, $images, $files, null);
-
-			$bar->advance();
-		}
-
-		$bar->finish();
-		$this->newLine();
-	}
-
-	protected function generateBlogContent($count, $domains, $tags, $images)
-	{
-		$categories = $this->createCategories($this->blogCategories, 'blog');
-
-		$bar = $this->output->createProgressBar($count);
-		$bar->start();
-
-		for ($i = 0; $i < $count; $i++) {
-			$category = $categories->random();
-			$title = str_replace('{categoria}', strtolower($category->name), $this->blogTitles[array_rand($this->blogTitles)]);
-
-			$post = Post::create([
-				'title' => $title,
-				'slug' => Str::slug($title) . '-' . uniqid(),
-				'excerpt' => $this->generateExcerpt(),
-				'content' => $this->generateContent('blog', rand(1000, 3000)),
-				'type' => 'blog',
-				'status' => 'published',
-				'published_at' => now()->subDays(rand(0, 60)),
-				'author' => $this->getRandomAuthor()
-			]);
-
-			$this->attachRelations($post, $categories->random(rand(1, 2)), $domains, $tags, $images, null, null);
-
-			$bar->advance();
-		}
-
-		$bar->finish();
-		$this->newLine();
-	}
-
-	protected function generateTvContent($count, $domains, $tags, $images, $audios)
-	{
-		$categories = $this->createCategories($this->tvCategories, 'tv');
-
-		$bar = $this->output->createProgressBar($count);
-		$bar->start();
-
-		for ($i = 0; $i < $count; $i++) {
-			$category = $categories->random();
-
-			$post = Post::create([
-				'title' => "Programa de {$category->name} - Episódio " . rand(1, 100),
-				'slug' => Str::slug($category->name . ' episodio ' . $i),
-				'excerpt' => $this->generateExcerpt(),
-				'content' => $this->generateContent('programa de TV', rand(500, 1500)),
-				'type' => 'tv',
-				'status' => 'published',
-				'published_at' => now()->subDays(rand(0, 90)),
-				'author' => $this->getRandomAuthor()
-			]);
-
-			$this->attachRelations($post, $categories->random(rand(1, 2)), $domains, $tags, $images, null, $audios);
 
 			$bar->advance();
 		}
@@ -725,5 +788,111 @@ class SeedContentCommand extends Command
 		'097.jpg',
 		'099.jpg',
 		'100.jpg',
+	];
+
+	protected $files = [
+		'01.pdf',
+		'02.pdf',
+		'03.pdf',
+		'04.pdf',
+		'05.pdf',
+		'06.pdf',
+		'07.pdf',
+		'08.pdf',
+		'09.pdf',
+		'10.pdf',
+		'11.ppt',
+		'12.ppt',
+		'13.ppt',
+		'14.xls',
+		'15.xls',
+		'16.xls',
+		'17.xls',
+		'18.xls',
+		'19.doc',
+		'20.docx',
+		'21.doc',
+		'22.docx',
+		'23.doc',
+		'24.docx',
+		'25.doc',
+		'26.docx',
+		'27.csv',
+		'28.csv',
+		'29.csv',
+		'30.zip',
+		'31.zip',
+		'32.zip',
+		'33.txt',
+		'34.txt',
+		'35.txt',
+		'36.txt',
+		'37.txt',
+		'38.rar',
+		'39.rar',
+		'40.rar',
+		'41.rar',
+		'42.rar',
+		'43.7z',
+		'44.gz',
+		'45.gz',
+		'46.gz',
+		'47.gz',
+		'48.gz',
+		'49.tar',
+		'50.tar',
+	];
+
+	$videos = [
+		['id' => 'zgaCZOQCpp8', 'title' => 'Lady Gaga, Bruno Mars - Die With A Smile (Lyrics)'],
+		['id' => 'u2ah9tWTkmk', 'title' => 'Alex Warren - Ordinary (Official Video)'],
+		['id' => 'hT_nvWreIhg', 'title' => 'OneRepublic - Counting Stars'],
+		['id' => '9gWIIIr2Asw', 'title' => 'Teddy Swims - Lose Control (The Village Sessions)'],
+		['id' => 'V9PVRfjEBTI', 'title' => 'Billie Eilish - BIRDS OF A FEATHER (Official Music Video)'],
+		['id' => 'dT2owtxkU8k', 'title' => "Shawn Mendes - There's Nothing Holdin' Me Back (Official Music Video)"],
+		['id' => 'zABLecsR5UE', 'title' => 'Lewis Capaldi - Someone You Loved'],
+		['id' => 'ekr2nIex040', 'title' => 'ROSÉ & Bruno Mars - APT. (Official Music Video)'],
+		['id' => '1el2U3f7Y18', 'title' => 'Teddy Swims - Devil in a Dress (Live)'],
+		['id' => 'yebNIHKAC4A', 'title' => '“Golden” Official Lyric Video | KPop Demon Hunters | Sony Animation'],
+		['id' => 'EkHTsc9PU2A', 'title' => "Jason Mraz - I'm Yours (Official Video) [4K Remaster]"],
+		['id' => 'f4Y3b7un4LE', 'title' => 'Benson Boone - Slow It Down (Official Music Video)'],
+		['id' => 'xGaZBfJOyAc', 'title' => 'Lady Gaga - The Dead Dance (Official Music Video)'],
+		['id' => 'orJSJGHjBLI', 'title' => 'Ed Sheeran - Bad Habits [Official Video]'],
+		['id' => 'L3wKzyIN1yk', 'title' => "Rag'n'Bone Man - Human (Official Video)"],
+		['id' => 'fLexgOxsZu0', 'title' => 'Bruno Mars - The Lazy Song (Official Music Video)'],
+		['id' => 'qN4ooNx77u0', 'title' => 'Harry Styles - Sign of the Times (Official Video)'],
+		['id' => 'zaIsVnmwdqg', 'title' => 'Kygo - Happy Now ft. Sandro Cavazza (Official Video)'],
+		['id' => 'CevxZvSJLk8', 'title' => 'Katy Perry - Roar'],
+		['id' => 'Qh8QwVYOSVU', 'title' => 'Teddy Swims - Bad Dreams (Official Music Video)'],
+		['id' => 'tKml80alH3Y', 'title' => 'Myles Smith - Stargazing (Lyric Video)'],
+		['id' => 'JgDNFQ2RaLQ', 'title' => 'Ed Sheeran - Sapphire (Official Music Video)'],
+		['id' => 'RgKAFK5djSk', 'title' => 'Wiz Khalifa - See You Again ft. Charlie Puth [Official Video] Furious 7 Soundtrack'],
+		['id' => 'JGwWNGJdvx8', 'title' => 'Ed Sheeran - Shape of You (Official Music Video)'],
+		['id' => 'cBVGlBWQzuc', 'title' => 'Maroon 5 - Girls Like You ft. Cardi B (Volume 2) (Official Music Video)'],
+		['id' => 'ShZ978fBl6Y', 'title' => 'Calum Scott - You Are The Reason (Official Video)'],
+		['id' => '2Vv-BfVoq4g', 'title' => 'Ed Sheeran - Perfect (Official Music Video)'],
+		['id' => 'VPRjCeoBqrI', 'title' => 'Coldplay - A Sky Full Of Stars (Official Video)'],
+		['id' => '983bBbJx0Mk', 'title' => '"Soda Pop" Official Lyric Video | KPop Demon Hunters | Sony Animation'],
+		['id' => 'GR3Liudev18', 'title' => 'Chappell Roan - Pink Pony Club (Official Music Video)'],
+		['id' => 'lY2yjAdbvdQ', 'title' => 'Shawn Mendes - Treat You Better'],
+		['id' => 'HPR-VwzbDRg', 'title' => 'Benson Boone - In The Stars (Official Music Video)'],
+		['id' => 'G7KNmW9a75Y', 'title' => 'Miley Cyrus - Flowers (Official Video)'],
+		['id' => 'FM7MFYoylVs', 'title' => 'The Chainsmokers & Coldplay - Something Just Like This (Official Lyric Video)'],
+		['id' => '09R8_2nJtjg', 'title' => 'Maroon 5 - Sugar (Official Music Video)'],
+		['id' => 'LHCob76kigA', 'title' => 'Lukas Graham - 7 Years [Official Music Video]'],
+		['id' => 'lp-EO5I60KA', 'title' => 'Ed Sheeran - Thinking Out Loud (Official Music Video)'],
+		['id' => 'OPf0YbXqDm0', 'title' => 'Mark Ronson - Uptown Funk (Official Video) ft. Bruno Mars'],
+		['id' => 'eVli-tstM5E', 'title' => 'Sabrina Carpenter - Espresso'],
+		['id' => 'Oextk-If8HQ', 'title' => 'Keane - Somewhere Only We Know (Official Music Video)'],
+		['id' => 'wAjHQXrIj9o', 'title' => 'Bad Bunny ft. Bomba Estéreo - Ojitos Lindos (Video Oficial) | Un Verano Sin Ti'],
+		['id' => '8UVNT4wvIGY', 'title' => 'Gotye - Somebody That I Used To Know (feat. Kimbra) [Official Music Video]'],
+		['id' => 'ru0K8uYEZWw', 'title' => 'Justin Timberlake - CAN\'T STOP THE FEELING! (from DreamWorks Animation\'s "TROLLS") (Official Video)'],
+		['id' => 'Oa_RSwwpPaA', 'title' => 'Benson Boone - Beautiful Things (Official Music Video)'],
+		['id' => 'aSugSGCC12I', 'title' => 'Sabrina Carpenter - Manchild (Official Video)'],
+		['id' => 'Lo4_K4relMg', 'title' => 'Rosa Linn - Snap - (Official Eurovision Music Video)'],
+		['id' => 'kffacxfA7G4', 'title' => 'Justin Bieber - Baby ft. Ludacris'],
+		['id' => 'Ek0SgwWmF9w', 'title' => 'Muse - Madness'],
+		['id' => '0-7IHOXkiV8', 'title' => 'KALEO - Way Down We Go (Official Music Video)'],
+		['id' => '9bZkp7q19f0', 'title' => 'PSY - GANGNAM STYLE(강남스타일) M/V']
 	];
 }
